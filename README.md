@@ -1,6 +1,15 @@
 signpdf
 =======
 
+Fork update (17-Jun-22):   
+------------
+
+New Branch GUI contains a version with Gui where you can click on the 
+spot where you want signature and / or date.  After clicking just close that window. 
+
+
+Orig Readme:
+---------
 A quick script to add signature images to PDFs, because I couldn't find
 anything that worked well for the purpose under Linux.
 
