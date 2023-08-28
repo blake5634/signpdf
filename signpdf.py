@@ -23,7 +23,9 @@ from scipy.ndimage import rotate
 
 import time
 
-YOUR_FAV_SIGNATURE_IMAGE = '/home/blake/templates/signature.png'
+YOUR_FAV_SIGNATURE_IMAGE = '/home/USER/xxxxxxxxx.png' # or .jpg
+initials = 'XX'   #  Your initials
+
 
 parser = argparse.ArgumentParser(">signpdf.py")
 # future - store encrypted signature image
@@ -44,7 +46,6 @@ def tellme(s):
     plt.title(s, fontsize=16)
     plt.draw()
 
-initials = 'BH'
 
 screenscale = 1.5   # matplotlib display inches over paper size inches
 positscale  = 1.0
