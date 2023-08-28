@@ -50,18 +50,27 @@ screenscale = 1.5   # matplotlib display inches over paper size inches
 positscale  = 1.0
 pdfdpi = 72.0       # PDF dots per inch
 
-def co_xform(p1,mode):   # assumes paper = US Letter
+def coord_xform(p1,mode):   # assumes paper = US Letter
     if mode == 'portrait':
         pageheightIn = 11.0
+        pagewidthIn  = 8.5
+        imgh = 800
+        imgw = 600
     else:
         pageheightIn = 8.5
+        pagewidthIn  = 11.0
+        imgh = 600
+        imgw = 800
     xfudge = 0
     yfudge = 5   # seems better
-    x1 = p1[0] + xfudge
-    y1 = p1[1] + yfudge
-    x2 = int((0.5+x1)*positscale)
-    y2 = int((0.5+ pageheightIn*pdfdpi - y1)*positscale)
-    return [x2,y2]
+    r1 = p1[0] + xfudge
+    c1 = p1[1] + yfudge
+    #r2 = int(0.5 + pageheightIn*r1/imgh)*pdfdpi
+    #c2 = int(0.5 +  pagewidthIn*c1/imgw)*pdfdpi
+    #r2 = int((0.5+ r1 )*positscale)
+    r2 = int((0.5+ pageheightIn*pdfdpi - r1 )*positscale)
+    c2 = int((0.5+ pagewidthIn*pdfdpi - c1) *positscale)
+    return [r2,c2]
 
 def sigbox(filename):
     # compute signature size in pixels
@@ -140,12 +149,12 @@ def get_locations(args,sig_page,sigtext):
     x = np.asarray(plt.ginput(npts,timeout=-1))
     print('1:',x)
     ptsig = x[0]
-    plt.text(ptsig[1],ptsig[0],'x',color='b')
+    plt.text(ptsig[0],ptsig[1],'x',color='b')
 
     ptd = None  # image point for date
     if args.date:
         ptd = x[1]
-        plt.text(ptd[1],ptd[0],'x',color='g')
+        plt.text(ptd[0],ptd[1],'x',color='g')
 
     if orientationmode == 'landscape':
         for i,p in enumerate(x):  # swap x,y dimensions
@@ -160,10 +169,10 @@ def get_locations(args,sig_page,sigtext):
 
     #print('You clicked (a): ', pt)
     # get int typed PDF coordinates of sig and date
-    pdf_pt_sig = co_xform(ptsig,orientationmode)
+    pdf_pt_sig = coord_xform(ptsig,orientationmode)
     pdf_pt_date = None
     if ptd is not None:
-        pdf_pt_date = co_xform(ptd,orientationmode)
+        pdf_pt_date = coord_xform(ptd,orientationmode)
 
     print('Sig  location:  {:}'.format(pdf_pt_sig))
     if ptd is not None:
@@ -175,9 +184,6 @@ def get_locations(args,sig_page,sigtext):
     # package results
     locs = [pdf_pt_sig, pdf_pt_date]
     return locs, orientationmode
-
-def swap(a,b):
-    return b,a
 
 def get_sig_image_info(args):
     #
@@ -213,6 +219,7 @@ def sign_pdf(args):
     fnameroot = os.path.splitext(args.pdf)[0]
     fnameext  = os.path.splitext(args.pdf)[1]
     output_filename = args.output or f"{fnameroot}_signed_{initials}{fnameext}"
+    output_filename = args.output or f"{fnameroot}_XXXsigned_{initials}{fnameext}"
 
     #
     #   input the text in text-mode
@@ -241,46 +248,37 @@ def sign_pdf(args):
             pageImage_tmp_filename = _get_tmp_filename()
             # get user to click locations
             locs, orientationmode = get_locations(args,page,sigtext)
-            (x1,y1) = locs[0]  # sig location
+            (r1,c1) = locs[0]  # sig location
             yshift = sig_descender_offset()
             if args.date:
-                (x2,y2) = locs[1]  # date location
+                (r2,c2) = locs[1]  # date location
             # load in the page for marking
             c = canvas.Canvas(pageImage_tmp_filename, pagesize=page.cropBox)
             [width , height] = dims # of signature
-            c.drawImage(args.signature, x1, y1, width, height, mask='auto')
+            #c.drawImage(args.signature, r1, c1, width, height, mask='auto')
             #if orientationmode=='portrait':
-            drx1 = x1
-            dry1 = y1
-            #else:
-                #drx1 = y1  # swap for landscape mode
-                #dry1 = x1
+            draw_r1 = r1
+            drc1 = c1
             if args.text:  # we are placing text instead of the signature
-                c.drawString(drx1,dry1, sigtext)
+                c.drawString(draw_r1,drc1, sigtext)
             else:
-                print('drawing sig img: ', drx1, dry1, -yshift)
-                c.drawImage(sig_img_name, drx1, dry1-yshift, width, height, mask='auto')
+                print('drawing sig img: ', draw_r1, drc1, -yshift)
+                c.drawImage(sig_img_name, draw_r1, drc1+yshift, width, height, mask='auto')
             if args.date:
-                #if orientationmode=='portrait':
-                drx2 = x2
-                dry2 = y2
-                #else:
-                    #drx2 = y2  # swap for landscape mode
-                    #dry2 = x2
-
-                print('drawing date: ', drx2, dry2)
-
-                c.drawString(drx2,dry2, datetime.datetime.now().strftime("%d-%b-%Y"))
+                draw_r2 = r2
+                drc2 = c2
+                print('drawing date: ', draw_r2, drc2,flush=True)
+                c.drawString(draw_r2,drc2, datetime.datetime.now().strftime("%d-%b-%Y"))
 
             #c.showPage()
             c.save()
 
             # Merge PDF in to original page
-            sig_tmp_fh = open(pageImage_tmp_filename, 'rb')
-            sig_tmp_pdf = PyPDF2.PdfFileReader(sig_tmp_fh)
-            sig_page = sig_tmp_pdf.getPage(0)
-            sig_page.mediaBox = page.mediaBox
-            page.mergePage(sig_page)
+            tmp_page_fh = open(pageImage_tmp_filename, 'rb')
+            signed_tmp_pdf = PyPDF2.PdfFileReader(tmp_page_fh)
+            signed_page = signed_tmp_pdf.getPage(0)
+            signed_page.mediaBox = page.mediaBox
+            page.mergePage(signed_page)
 
         writer.addPage(page)
 
