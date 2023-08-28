@@ -17,15 +17,17 @@ import matplotlib.image as img
 import numpy as np
 
 import time
- 
-YOUR_FAV_SIGNATURE_IMAGE = 'PATH TO IMAGE FILE HERE (either png or jpg)'
+
+#YOUR_FAV_SIGNATURE_IMAGE = 'PATH TO IMAGE FILE HERE (either png or jpg)'
+YOUR_FAV_SIGNATURE_IMAGE = '/home/blake/templates/signature.png'
+
 
 parser = argparse.ArgumentParser(">signpdf.py")
 # future - store encrypted signature image
 #parser.add_argument('key', help='key to decript your signature file')
 parser.add_argument("pdf", help="The pdf file to annotate")
 # signature is now optional- a default is available
-parser.add_argument("signature", nargs='?', 
+parser.add_argument("signature", nargs='?',
         help="(optional)The signature file (png, jpg)")
 parser.add_argument("--date", action='store_true',
         help='enable clicking a second location for adding signature date.')
@@ -38,23 +40,29 @@ def tellme(s):
     print(s)
     plt.title(s, fontsize=16)
     plt.draw()
-    
-    
-    
-screenscale = 1.5   # matplotlib display inches over paper size inches 
+
+
+
+screenscale = 1.5   # matplotlib display inches over paper size inches
 positscale  = 1.0
 pdfdpi = 72.0       # PDF dots per inch
 
-def co_xform(p1):   # assumes paper = US Letter
+def co_xform(p1,mode):   # assumes paper = US Letter
     pageheightIn = 11.0
     xfudge = 0
     yfudge = 5   # seems better
     x1 = p1[0] + xfudge
     y1 = p1[1] + yfudge
     x2 = int((0.5+x1)*positscale)
-    y2 = int((0.5+ pageheightIn*pdfdpi - y1)*positscale)
+    if mode == 'landscape':
+        h = 8.5
+        w = 11.5
+    else:
+        h = 11.5
+        w = 8.5
+    y2 = int((0.5+ h*pdfdpi - y1)*positscale)
     return [x2,y2]
-    
+
 def sigbox(filename):
     # compute signature size in pixels
     #  TODO: open the signature file and figure out its height & width
@@ -64,13 +72,14 @@ def sigbox(filename):
     x = int(0.5+pdfdpi*sx)
     y = int(0.5+pdfdpi*sy)
     return [x,y]
-    
+
 def sig_descender_offset():  # vertical shift to allow descenders below click pt
-    # 
+    #
     #  future: figure this value out by image analysis of signature!!
     #
     desc_in = 0.250*positscale  #inches below sig line (click pt)
-    return desc_in * pdfdpi
+    #return desc_in * pdfdpi
+    return 0.0
 
 def get_locations(args,sig_page,sigtext):
     # with thanks to:
@@ -79,6 +88,13 @@ def get_locations(args,sig_page,sigtext):
     #plt.clf()
     writer = PyPDF2.PdfFileWriter()
 
+    h = sig_page.mediaBox.height
+    w = sig_page.mediaBox.width
+    if h>w:
+        aspectMode = 'portriat'
+    else:
+        aspectMode = 'landscape'
+
     # create temp file and convert to png for intractive location clicking
     pdfFileName = args.pdf
     uniquetmpName = 'tmp1pageExr48csdH5ru'
@@ -86,8 +102,8 @@ def get_locations(args,sig_page,sigtext):
     with open(uniquetmpName+'.pdf', 'wb') as fh:
         writer.write(fh)
     fh.close()
-    
-    
+
+
     ###  generate a 1-page PDF of the sig page for preview/clicking
     ##outputPDFname = args.output or "{}_signed{}".format(os.path.splitext(args.pdf))
     ##cmd = 'pdftk {:} cat {:} output {:}'.format(pdfFileName, sig_page, outputPDFname )
@@ -98,14 +114,14 @@ def get_locations(args,sig_page,sigtext):
     cmd = 'convert -density 288 {:}.pdf -resize 25% {:}.png'.format(uniquetmpName, uniquetmpName)  # should give 72 dpi
     print('Executing: ', cmd)
     os.system(cmd)
-    
+
     w = screenscale*8.5
     h = screenscale*11.0
     fig, ax = plt.subplots(figsize=(w,h))
- 
+
     page_img = img.imread(uniquetmpName+'.png')
     ax.imshow(page_img)
- 
+
 
     plt.setp(plt.gca(), autoscale_on=False)
 
@@ -115,51 +131,49 @@ def get_locations(args,sig_page,sigtext):
         click1target = 'signature'
     if args.date:
         tellme('Please click locations of {:} and date ... then close the preview.'.format(click1target))
-    else:        
+    else:
         tellme('Please click location of {:} ... then close the preview.'.format(click1target))
 
 
     #plt.waitforbuttonpress()
     if args.date:
-        npts = 2
+        npoint_sig = 2
     else:
-        npts = 1
-    
-    x = np.asarray(plt.ginput(npts,timeout=-1))
-    pts = x[0]
-    plt.text(pts[0],pts[1],'x',color='b')
+        npoint_sig = 1
 
-    ptd = None
+    x = np.asarray(plt.ginput(npoint_sig,timeout=-1))
+    point_sig = x[0]
+    plt.text(point_sig[0],point_sig[1],'x',color='b')
+
+    point_date = None
     if args.date:
-        ptd = x[1]
-        plt.text(ptd[0],ptd[1],'x',color='g')
+        point_date = x[1]
+        plt.text(point_date[0],point_date[1],'x',color='g')
 
-    plt.show()  
+    plt.show()
 
 
     #print('You clicked (a): ', pt)
     # get int typed PDF coordinates of sig and date
-    pdf_pt_s = co_xform(pts)
-    pdf_pt_d = None
-    if ptd is not None:
-        pdf_pt_d = co_xform(ptd) 
-    
+    pdf_pt_s = co_xform(point_sig, aspectMode)
     print('Sig  location:  {:}'.format(pdf_pt_s))
-    if ptd is not None:
+    pdf_pt_d = None
+    if point_date is not None:
+        pdf_pt_d = co_xform(point_date)
         print('Date location:  {:}'.format(pdf_pt_d))
-     
+
     # cleanup
     os.system('rm {:}'.format(uniquetmpName+'.png'))
     os.system('rm {:}'.format(uniquetmpName+'.pdf'))
     # package results
-    locs = [pdf_pt_s, pdf_pt_d]
+    locs = [pdf_pt_s, pdf_pt_d] # sig and date locations
     return locs
 
-def get_sig_image(args):
+def get_sig_image_info(args):
     #
     #  TODO: open image file, read it in and DECRYPT it.
     #        c.drawImage is SUPPOSED to work with a PIL formatted
-    #        image in memory but seems not to. 
+    #        image in memory but seems not to.
     #
     #   for now only file name is returned (no encryption)
     #
@@ -168,7 +182,7 @@ def get_sig_image(args):
     else:
         ###   easier to use if repeating one sig file
         img_file_path = YOUR_FAV_SIGNATURE_IMAGE
-    dims = sigbox(img_file_path) 
+    dims = sigbox(img_file_path)
     print('Signature I will use is:', img_file_path, dims)
     return img_file_path, dims
 
@@ -183,7 +197,7 @@ def sign_pdf(args):
         page_num = int(args.pageno) - 1
     except:
         page_num = 1 -1  # default is page 1
-        
+
     print('''
 
 
@@ -211,13 +225,19 @@ def sign_pdf(args):
     pdf = PyPDF2.PdfFileReader(pdf_fh)
     writer = PyPDF2.PdfFileWriter()
     sig_tmp_filename = None
-    
+
     hashkey = 'c9010ea5923339f4214c6a6eb2547b1a34a750c7ccd42980b678d61dfc9e33ac'
     args.key = hashkey
-    sig_img_name, dims = get_sig_image(args)
+    sig_img_name, dims = get_sig_image_info(args)
 
     for i in range(0, pdf.getNumPages()):
         page = pdf.getPage(i)
+        w = page.mediaBox.width
+        h = page.mediaBox.height
+        if w > h:  # landscape
+            Y_OFST = 0.0 #* pdfdpi
+        else:  #portriat
+            Y_OFST = 0.0
 
         if i == page_num:  # now we are on the signature page
             # Create PDF for signature
@@ -225,16 +245,18 @@ def sign_pdf(args):
             # get user to click locations
             locs = get_locations(args,page,sigtext)
             (x1,y1) = locs[0]  # sig location
-            y1 -= sig_descender_offset()
+            yshift = sig_descender_offset() + Y_OFST  # shift for landscape mode
+            y1 -= yshift
             if args.date:
                 (x2,y2) = locs[1]  # date location
-            
+
             c = canvas.Canvas(sig_tmp_filename, pagesize=page.cropBox)
             [width , height] = dims
             #c.drawImage(args.signature, x1, y1, width, height, mask='auto')
             if args.text:  # we are placing text instead of the signature
-                c.drawString(x1,y1+sig_descender_offset(), sigtext)
+                c.drawString(x1,y1+yshift, sigtext)
             else:
+                print('DRAWING sig image at',x1,y1)
                 c.drawImage(sig_img_name, x1, y1, width, height, mask='auto')
             if args.date:
                 c.drawString(x2,y2, datetime.datetime.now().strftime("%d-%b-%Y"))
