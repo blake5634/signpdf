@@ -65,11 +65,16 @@ def coord_xform(p1,mode):   # assumes paper = US Letter
     yfudge = 5   # seems better
     r1 = p1[0] + xfudge
     c1 = p1[1] + yfudge
+
+    # orig GUI br
+    #x2 = int((0.5+x1)*positscale)
+    #y2 = int((0.5+ pageheightIn*pdfdpi - y1)*positscale)
+
     #r2 = int(0.5 + pageheightIn*r1/imgh)*pdfdpi
     #c2 = int(0.5 +  pagewidthIn*c1/imgw)*pdfdpi
     #r2 = int((0.5+ r1 )*positscale)
-    r2 = int((0.5+ pageheightIn*pdfdpi - r1 )*positscale)
-    c2 = int((0.5+ pagewidthIn*pdfdpi - c1) *positscale)
+    r2 = int((0.5+ r1 )*positscale)
+    c2 = int((0.5+ pageheightIn*pdfdpi - c1) *positscale)
     return [r2,c2]
 
 def sigbox(filename):
@@ -263,7 +268,7 @@ def sign_pdf(args):
                 c.drawString(draw_r1,drc1, sigtext)
             else:
                 print('drawing sig img: ', draw_r1, drc1, -yshift)
-                c.drawImage(sig_img_name, draw_r1, drc1+yshift, width, height, mask='auto')
+                c.drawImage(sig_img_name, draw_r1, drc1-yshift, width, height, mask='auto')
             if args.date:
                 draw_r2 = r2
                 drc2 = c2
