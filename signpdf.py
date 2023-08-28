@@ -161,12 +161,6 @@ def get_locations(args,sig_page,sigtext):
         ptd = x[1]
         plt.text(ptd[0],ptd[1],'x',color='g')
 
-    if orientationmode == 'landscape':
-        for i,p in enumerate(x):  # swap x,y dimensions
-            t = x[i][0]
-            x[i][0] = x[i][1]
-            x[i][1] = t
-
     print('2:',x)
 
     plt.show()
