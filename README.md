@@ -1,6 +1,14 @@
 ## signpdf
 =======
 
+Sept 2023:
+------------
+
+GUI branch is now merged into main (renamed from master).   
+clicking sig/text/date locations now works for landscape mode pages as well 
+as portrait mode. 
+
+
 Fork update (17-Jun-22):   
 ------------
 
