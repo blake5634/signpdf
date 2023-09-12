@@ -1,8 +1,11 @@
 #!/usr/bin/python3
 
 import os
+import sys
+import shutil
 import time
 import argparse
+import re
 import tempfile
 import PyPDF2
 import datetime
@@ -40,6 +43,29 @@ parser.add_argument("--output", nargs='?',
         help="Output file. Defaults to input filename plus '_signed_XX'.pdf  (XX = initials)")
 parser.add_argument("--pageno", help="Which page to apply the signature (default= 1).")
 parser.add_argument("--text", action='store_true', help='Add text to the PDF instead of a signature')
+
+#  read key configs in from file
+try:
+    f = open (os.path.expanduser('~/signpdf.conf'),'r')
+    for l in f:
+        tokens = l.split()
+        tokens = [token for token in tokens if token]  # get rid of ' ' etc.
+        for t in tokens:
+            if t == '':
+                tokens.remove(t)
+        print('parsing conf: ', l, '-->',tokens)
+        if tokens[0] == 'image':   ############## path to signature image  (.png or .jpg)
+            YOUR_FAV_SIGNATURE_IMAGE = tokens[1]
+        if tokens[0] == 'initials': ###############   initials (up to 3 chars)
+            inits = tokens[1]
+            inits = inits.upper()
+            if len(inits) > 3:
+                inits = inits[:3]
+                print(f'Initials trucated to {inits} (max 3 chars)')
+            initials = inits
+except:
+    print('I cant open ~/signpdf.conf')
+    quit()
 
 def tellme(s):
     print(s)
@@ -179,8 +205,8 @@ def get_locations(args,sig_page,sigtext):
         print('Date location:  {:}'.format(pdf_pt_date))
 
     # cleanup
-    #os.system('rm {:}'.format(uniquetmpName+'.png'))
-    #os.system('rm {:}'.format(uniquetmpName+'.pdf'))
+    os.system('rm {:}'.format(uniquetmpName+'.png'))
+    os.system('rm {:}'.format(uniquetmpName+'.pdf'))
     # package results
     locs = [pdf_pt_sig, pdf_pt_date]
     return locs, orientationmode
@@ -208,18 +234,19 @@ def _get_tmp_filename(suffix=".pdf"):
 
 def sign_pdf(args):
     try:
-        int(args.pageno)
         # correct the page number for list index usage
-        page_num = int(args.pageno) - 1
+        page_num = int(args.pageno) -1
     except:
         page_num = 1 -1  # default is page 1
 
     print(' We are going to sign page: ', page_num+1)
 
     fnameroot = os.path.splitext(args.pdf)[0]
+    if 'TMP56739xx' in fnameroot:  # special flag for repeated files
+        fnameroot = fnameroot.replace('TMP56739xx','')
     fnameext  = os.path.splitext(args.pdf)[1]
     output_filename = args.output or f"{fnameroot}_signed_{initials}{fnameext}"
-    output_filename = args.output or f"{fnameroot}_XXXsigned_{initials}{fnameext}"
+    print('output file will be: ', output_filename)
 
     #
     #   input the text in text-mode
@@ -236,16 +263,20 @@ def sign_pdf(args):
     writer = PyPDF2.PdfFileWriter()
     pageImage_tmp_filename = None
 
-    hashkey = 'c9010ea5923339f4214c6a6eb2547b1a34a750c7ccd42980b678d61dfc9e33ac'
-    args.key = hashkey
+    #hashkey = 'c9010ea5923339f4214c6a6eb2547b1a34a750c7ccd42980b678d61dfc9e33ac'
+    #args.key = hashkey
     sig_img_name, dims = get_sig_image_info(args)
 
+    if page_num > pdf.getNumPages()-1:
+        print(f'Your requested page number ({page_num}) is greater than length of the PDF ({pdf.getNumPages()})!!')
+        quit()
     for i in range(0, pdf.getNumPages()):
         page = pdf.getPage(i)
 
         if i == page_num:  # now we are on the signature page
             # Create PDF for signature
             pageImage_tmp_filename = _get_tmp_filename()
+            print('got here')
             # get user to click locations
             locs, orientationmode = get_locations(args,page,sigtext)
             (r1,c1) = locs[0]  # sig location
@@ -291,9 +322,30 @@ def sign_pdf(args):
     if pageImage_tmp_filename:
         os.remove(pageImage_tmp_filename)
 
-def main():
+    return output_filename
 
-    sign_pdf(parser.parse_args())
+def main():
+    filenameRE = re.compile(r'_signed_[A-Z]{2,3}.pdf$')
+
+    print('signing: ', sys.argv)
+    fn = sign_pdf(parser.parse_args())
+    print('working on: ', fn)
+    while(True):
+        x = input('would you like to do more with this document?  (y/N)')
+        # repair the filename
+        tmpfn = filenameRE.sub('TMP56739xx.pdf',fn)  # reset filename but don't clobber original
+        shutil.copyfile(fn,tmpfn)
+        repargs = ['signpdf.py', tmpfn]
+        if x.lower() == 'y':
+            x = input('Enter new command line options: (ex: --text --page 2)')
+            for a in x.split(' '):
+                repargs.append(a)
+            sys.argv = repargs
+            sign_pdf(parser.parse_args())
+        else:
+            finalfn = tmpfn.replace('TMP56739xx',f'_signed_{initials}')
+            os.rename(tmpfn,finalfn)
+            quit()
 
 if __name__ == "__main__":
     main()
